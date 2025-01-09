@@ -1,132 +1,53 @@
-import NextAuth from "next-auth";
-import type { NextAuthConfig } from "next-auth";
-import type { Session, User } from "next-auth";
-import type { JWT } from "next-auth/jwt";
-import CredentialsProvider from "next-auth/providers/credentials";
-import { compare } from "bcryptjs";
-import { prisma } from "@/lib/prisma";
-import { UserRole } from "@prisma/client";
+import NextAuth from "next-auth"
+import CredentialsProvider from "next-auth/providers/credentials"
+import bcrypt from "bcryptjs"
+import { prisma } from "@/lib/prisma"
 
-interface CustomUser extends User {
-  id: string;
-  email: string;
-  name: string | null;
-  role: UserRole;
-}
-
-interface CustomSession extends Session {
-  user: CustomUser;
-}
-
-interface Credentials {
-  email: string;
-  password: string;
-}
-
-interface CustomToken extends JWT {
-  id: string;
-  role: UserRole;
-}
-
-export const authConfig = {
+export const authOptions = {
   providers: [
     CredentialsProvider({
       name: "credentials",
       credentials: {
-        email: { 
-          label: "Email", 
-          type: "email",
-          placeholder: "example@example.com" 
-        },
-        password: { 
-          label: "Password", 
-          type: "password",
-          placeholder: "Enter your password"
-        }
+        email: { label: "Email", type: "text", placeholder: "email@example.com" },
+        password: { label: "Password", type: "password" }
       },
-      async authorize(credentials): Promise<CustomUser | null> {
-        if (!credentials || !credentials.email || !credentials.password) {
+      async authorize(credentials, req) {
+        if (!credentials?.email || !credentials?.password) {
           return null;
         }
 
-        const { email, password } = credentials as Credentials;
-
-        try {
-          const user = await prisma.user.findUnique({
-            where: { 
-              email: email.toLowerCase()
-            },
-            select: {
-              id: true,
-              email: true,
-              name: true,
-              role: true,
-              passwordHash: true,
-            },
-          });
-
-          if (!user) {
-            return null;
+        const user = await prisma.user.findUnique({
+          where: {
+            email: credentials.email
           }
+        });
 
-          const isPasswordValid = await compare(password, user.passwordHash);
-
-          if (!isPasswordValid) {
-            return null;
-          }
-
-          return {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            role: user.role,
-          };
-        } catch (error) {
-          console.error("Authentication error:", error);
+        if (!user?.passwordHash) {
           return null;
         }
-      },
-    }),
+
+        const isPasswordValid = await bcrypt.compare(
+          credentials.password,
+          user.passwordHash
+        );
+
+        if (!isPasswordValid) {
+          return null;
+        }
+
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+        };
+      }
+    })
   ],
   pages: {
     signIn: "/login",
-    signOut: "/login",
-    error: "/login",
   },
-  callbacks: {
-    async session({ session, token }): Promise<CustomSession> {
-      if (!session?.user) {
-        throw new Error("Missing user on session");
-      }
+};
 
-      const customToken = token as CustomToken;
+const handler = NextAuth(authOptions);
 
-      return {
-        ...session,
-        user: {
-          ...session.user,
-          id: customToken.id,
-          role: customToken.role,
-        } as CustomUser,
-      };
-    },
-    async jwt({ token, user }): Promise<CustomToken> {
-      if (!token.id && user) {
-        return {
-          ...token,
-          id: user.id,
-          role: user.role,
-        } as CustomToken;
-      }
-      return token as CustomToken;
-    },
-  },
-  session: {
-    strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 days
-  },
-  debug: process.env.NODE_ENV === "development",
-  trustHost: true,
-} satisfies NextAuthConfig;
-
-export const { auth, signIn, signOut } = NextAuth(authConfig); 
+export { handler as GET, handler as POST }; 

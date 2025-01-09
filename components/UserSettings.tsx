@@ -1,205 +1,172 @@
 'use client';
 
-import { useState } from 'react';
-import { Button } from "./ui/button";
-import { Switch } from "./ui/switch";
-import { Label } from "./ui/label";
-import { Settings, Download, Upload, RotateCcw, Check, X } from 'lucide-react';
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-  SheetFooter,
-} from "./ui/sheet";
-import { usePreferences } from '@/contexts/PreferencesContext';
-import { toast } from 'sonner';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useEffect, useState } from 'react';
+import { useTheme } from 'next-themes';
+import { Button } from './ui/button';
+import { Switch } from './ui/switch';
 
-export function UserSettings() {
-  const { preferences, updatePreference, resetPreferences, exportPreferences, importPreferences } = usePreferences();
-  const [isOpen, setIsOpen] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+interface UserSettingsProps {
+  onClose?: () => void;
+}
 
-  const handleExport = async () => {
-    try {
-      setIsLoading(true);
-      const data = exportPreferences();
-      const blob = new Blob([data], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'preferences.json';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success('Preferences exported successfully');
-    } catch (error) {
-      toast.error('Failed to export preferences');
-    } finally {
-      setIsLoading(false);
+export function UserSettings({ onClose }: UserSettingsProps) {
+  const [mounted, setMounted] = useState(false);
+  const { theme, setTheme } = useTheme();
+  const [settings, setSettings] = useState({
+    notifications: false,
+    voiceInput: false,
+    autoSave: true,
+    fontSize: 'medium'
+  });
+
+  useEffect(() => {
+    setMounted(true);
+    // Load saved settings from localStorage
+    const savedSettings = localStorage.getItem('userSettings');
+    if (savedSettings) {
+      setSettings(JSON.parse(savedSettings));
     }
+  }, []);
+
+  const handleSettingChange = (key: keyof typeof settings, value: any) => {
+    const newSettings = { ...settings, [key]: value };
+    setSettings(newSettings);
+    localStorage.setItem('userSettings', JSON.stringify(newSettings));
   };
 
-  const handleImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const handleThemeToggle = () => {
+    setTheme(theme === 'dark' ? 'light' : 'dark');
+  };
 
-    try {
-      setIsLoading(true);
-      const text = await file.text();
-      importPreferences(text);
-      toast.success('Preferences imported successfully');
-      setIsOpen(false);
-    } catch (error) {
-      toast.error('Failed to import preferences');
-    } finally {
-      setIsLoading(false);
+  const handleExport = () => {
+    const dataStr = JSON.stringify(settings);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    const exportFileDefaultName = 'settings.json';
+
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+  };
+
+  const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const importedSettings = JSON.parse(e.target?.result as string);
+          setSettings(importedSettings);
+          localStorage.setItem('userSettings', JSON.stringify(importedSettings));
+        } catch (error) {
+          console.error('Error importing settings:', error);
+        }
+      };
+      reader.readAsText(file);
     }
   };
 
   const handleReset = () => {
-    resetPreferences();
-    toast.success('Preferences reset to defaults');
-    setIsOpen(false);
+    const defaultSettings = {
+      notifications: false,
+      voiceInput: false,
+      autoSave: true,
+      fontSize: 'medium'
+    };
+    setSettings(defaultSettings);
+    localStorage.setItem('userSettings', JSON.stringify(defaultSettings));
   };
 
+  if (!mounted) return null;
+
   return (
-    <Sheet open={isOpen} onOpenChange={setIsOpen}>
-      <SheetTrigger asChild>
-        <Button 
-          variant="ghost" 
-          size="icon"
-          className="relative btn-icon"
-          aria-label="Open settings"
-        >
-          <Settings className="h-5 w-5" />
-          <span className="sr-only">Settings</span>
-        </Button>
-      </SheetTrigger>
-      <SheetContent className="sm:max-w-md">
-        <div>
-          <SheetHeader>
-            <SheetTitle className="text-xl font-semibold">Settings</SheetTitle>
-            <SheetDescription>
-              Customize your therapy session experience
-            </SheetDescription>
-          </SheetHeader>
-          <div className="space-y-6 py-6">
-            <div className="space-y-6">
-              <div className="flex items-center justify-between space-x-4">
-                <Label htmlFor="theme" className="flex items-center space-x-2">
-                  <span>Dark Mode</span>
-                </Label>
-                <Switch
-                  id="theme"
-                  checked={preferences.theme === 'dark'}
-                  onCheckedChange={(checked) => updatePreference('theme', checked ? 'dark' : 'light')}
-                  aria-label="Toggle dark mode"
-                />
-              </div>
-
-              <div className="flex items-center justify-between space-x-4">
-                <Label htmlFor="notifications" className="flex items-center space-x-2">
-                  <span>Notifications</span>
-                </Label>
-                <Switch
-                  id="notifications"
-                  checked={preferences.notifications}
-                  onCheckedChange={(checked) => updatePreference('notifications', checked)}
-                  aria-label="Toggle notifications"
-                />
-              </div>
-
-              <div className="flex items-center justify-between space-x-4">
-                <Label htmlFor="voiceEnabled" className="flex items-center space-x-2">
-                  <span>Voice Input</span>
-                </Label>
-                <Switch
-                  id="voiceEnabled"
-                  checked={preferences.voiceEnabled}
-                  onCheckedChange={(checked) => updatePreference('voiceEnabled', checked)}
-                  aria-label="Toggle voice input"
-                />
-              </div>
-
-              <div className="flex items-center justify-between space-x-4">
-                <Label htmlFor="autoSave" className="flex items-center space-x-2">
-                  <span>Auto Save</span>
-                </Label>
-                <Switch
-                  id="autoSave"
-                  checked={preferences.autoSave}
-                  onCheckedChange={(checked) => updatePreference('autoSave', checked)}
-                  aria-label="Toggle auto save"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Font Size</Label>
-                <div className="flex gap-2">
-                  {(['small', 'medium', 'large'] as const).map((size) => (
-                    <Button
-                      key={size}
-                      variant={preferences.fontSize === size ? 'default' : 'outline'}
-                      onClick={() => updatePreference('fontSize', size)}
-                      className="flex-1 capitalize"
-                      aria-pressed={preferences.fontSize === size}
-                    >
-                      {size}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            </div>
+    <div className="p-6 space-y-6">
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-medium">Dark Mode</h3>
+            <p className="text-sm text-muted-foreground">Switch between light and dark theme</p>
           </div>
-          <SheetFooter className="flex-col gap-4 sm:flex-col">
-            <div className="grid grid-cols-2 gap-4 w-full">
-              <Button
-                variant="outline"
-                onClick={handleExport}
-                disabled={isLoading}
-                className="w-full"
-                aria-label="Export preferences"
-              >
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => document.getElementById('import-preferences')?.click()}
-                disabled={isLoading}
-                className="w-full"
-                aria-label="Import preferences"
-              >
-                <Upload className="w-4 h-4 mr-2" />
-                Import
-                <input
-                  id="import-preferences"
-                  type="file"
-                  accept=".json"
-                  className="hidden"
-                  onChange={handleImport}
-                  aria-label="Import preferences file"
-                />
-              </Button>
-            </div>
-            <Button
-              variant="destructive"
-              onClick={handleReset}
-              disabled={isLoading}
-              className="w-full"
-              aria-label="Reset preferences to defaults"
-            >
-              <RotateCcw className="w-4 h-4 mr-2" />
-              Reset to Defaults
-            </Button>
-          </SheetFooter>
+          <Switch
+            checked={theme === 'dark'}
+            onCheckedChange={handleThemeToggle}
+          />
         </div>
-      </SheetContent>
-    </Sheet>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-medium">Notifications</h3>
+            <p className="text-sm text-muted-foreground">Receive session reminders and updates</p>
+          </div>
+          <Switch
+            checked={settings.notifications}
+            onCheckedChange={(checked) => handleSettingChange('notifications', checked)}
+          />
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-medium">Voice Input</h3>
+            <p className="text-sm text-muted-foreground">Enable voice recording for messages</p>
+          </div>
+          <Switch
+            checked={settings.voiceInput}
+            onCheckedChange={(checked) => handleSettingChange('voiceInput', checked)}
+          />
+        </div>
+
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-medium">Auto Save</h3>
+            <p className="text-sm text-muted-foreground">Automatically save chat history</p>
+          </div>
+          <Switch
+            checked={settings.autoSave}
+            onCheckedChange={(checked) => handleSettingChange('autoSave', checked)}
+          />
+        </div>
+
+        <div>
+          <h3 className="font-medium mb-2">Font Size</h3>
+          <div className="flex gap-2">
+            {['small', 'medium', 'large'].map((size) => (
+              <Button
+                key={size}
+                variant={settings.fontSize === size ? 'default' : 'outline'}
+                onClick={() => handleSettingChange('fontSize', size)}
+                className="flex-1"
+              >
+                {size.charAt(0).toUpperCase() + size.slice(1)}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        <div className="flex gap-2 pt-4">
+          <Button onClick={handleExport} variant="outline" className="flex-1">
+            Export Settings
+          </Button>
+          <Button variant="outline" className="flex-1" asChild>
+            <label>
+              Import Settings
+              <input
+                type="file"
+                accept=".json"
+                onChange={handleImport}
+                className="hidden"
+              />
+            </label>
+          </Button>
+        </div>
+
+        <Button
+          onClick={handleReset}
+          variant="destructive"
+          className="w-full"
+        >
+          Reset to Defaults
+        </Button>
+      </div>
+    </div>
   );
 } 

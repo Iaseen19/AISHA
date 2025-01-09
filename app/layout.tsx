@@ -1,26 +1,28 @@
-import { Inter } from 'next/font/google';
-import './globals.css';
-import { Providers } from './providers';
-import type { Metadata } from 'next';
+import type { Metadata } from 'next'
+import { Inter } from 'next/font/google'
+import './globals.css'
+import { RootProvider } from './providers/root-provider'
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Aisha Therapy - Your Mental Health Companion',
-  description: 'A supportive AI-powered therapy companion for your mental health journey.',
-};
+  title: 'AISHA - AI Supported Health Assistant',
+  description: 'Your personal AI health assistant',
+}
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        <Providers>{children}</Providers>
+        <RootProvider>
+          {children}
+        </RootProvider>
       </body>
     </html>
-  );
+  )
 }
 

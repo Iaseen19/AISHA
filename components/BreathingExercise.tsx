@@ -2,75 +2,118 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
-import { Card, CardContent } from './ui/card';
-
-const defaultPattern = {
-  inhale: 4,
-  hold: 4,
-  exhale: 4,
-  cycles: 5,
-};
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 
 export function BreathingExercise() {
   const [isActive, setIsActive] = useState(false);
-  const [currentPhase, setCurrentPhase] = useState<'inhale' | 'hold' | 'exhale'>('inhale');
-  const [timeLeft, setTimeLeft] = useState(defaultPattern.inhale);
-  const [cyclesLeft, setCyclesLeft] = useState(defaultPattern.cycles);
+  const [phase, setPhase] = useState<'inhale' | 'hold' | 'exhale' | 'rest'>('inhale');
+  const [timer, setTimer] = useState(0);
+
+  const phaseDurations = {
+    inhale: 4,
+    hold: 7,
+    exhale: 8,
+    rest: 1,
+  };
+
+  const phaseMessages = {
+    inhale: 'Breathe in...',
+    hold: 'Hold...',
+    exhale: 'Breathe out...',
+    rest: 'Rest...',
+  };
 
   useEffect(() => {
-    if (!isActive) return;
+    let interval: NodeJS.Timeout;
 
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev > 1) return prev - 1;
-        
-        // Phase transition
-        switch (currentPhase) {
-          case 'inhale':
-            setCurrentPhase('hold');
-            return defaultPattern.hold;
-          case 'hold':
-            setCurrentPhase('exhale');
-            return defaultPattern.exhale;
-          case 'exhale':
-            setCurrentPhase('inhale');
-            setCyclesLeft((prev) => prev - 1);
-            return defaultPattern.inhale;
-        }
-      });
-    }, 1000);
+    if (isActive) {
+      interval = setInterval(() => {
+        setTimer((prevTimer) => {
+          const newTimer = prevTimer + 1;
+          const currentPhaseDuration = phaseDurations[phase];
 
-    if (cyclesLeft === 0) {
-      setIsActive(false);
-      setCyclesLeft(defaultPattern.cycles);
+          if (newTimer >= currentPhaseDuration) {
+            // Move to next phase
+            switch (phase) {
+              case 'inhale':
+                setPhase('hold');
+                break;
+              case 'hold':
+                setPhase('exhale');
+                break;
+              case 'exhale':
+                setPhase('rest');
+                break;
+              case 'rest':
+                setPhase('inhale');
+                break;
+            }
+            return 0;
+          }
+          return newTimer;
+        });
+      }, 1000);
     }
 
-    return () => clearInterval(timer);
-  }, [isActive, currentPhase, cyclesLeft]);
+    return () => {
+      if (interval) {
+        clearInterval(interval);
+      }
+    };
+  }, [isActive, phase]);
+
+  const handleStartStop = () => {
+    if (!isActive) {
+      setPhase('inhale');
+      setTimer(0);
+    }
+    setIsActive(!isActive);
+  };
+
+  const getCircleSize = () => {
+    switch (phase) {
+      case 'inhale':
+        return `${(timer / phaseDurations.inhale) * 100}%`;
+      case 'hold':
+        return '100%';
+      case 'exhale':
+        return `${100 - (timer / phaseDurations.exhale) * 100}%`;
+      case 'rest':
+        return '0%';
+      default:
+        return '50%';
+    }
+  };
 
   return (
     <Card>
-      <CardContent className="p-6 space-y-4">
-        <h2 className="text-2xl font-semibold text-center">Breathing Exercise</h2>
+      <CardHeader>
+        <CardTitle>4-7-8 Breathing Exercise</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col items-center space-y-8">
+        <div className="relative w-64 h-64 flex items-center justify-center">
+          <div
+            className="absolute bg-primary/20 rounded-full transition-all duration-1000"
+            style={{
+              width: getCircleSize(),
+              height: getCircleSize(),
+            }}
+          />
+          <div className="text-lg font-medium">
+            {phaseMessages[phase]}
+          </div>
+        </div>
+
         <div className="text-center space-y-4">
-          <div className="text-4xl font-bold">
-            {isActive ? (
-              <>
-                <div>{currentPhase.toUpperCase()}</div>
-                <div className="text-6xl mt-2">{timeLeft}</div>
-              </>
-            ) : (
-              "Ready to begin?"
-            )}
-          </div>
-          <div className="text-sm text-muted-foreground">
-            Cycles remaining: {cyclesLeft}
-          </div>
+          <p className="text-sm text-muted-foreground">
+            This breathing technique can help reduce anxiety and promote relaxation.
+          </p>
           <Button
-            onClick={() => setIsActive(!isActive)}
-            className="w-32"
+            onClick={handleStartStop}
+            size="lg"
+            className="min-w-[120px]"
           >
-            {isActive ? "Stop" : "Start"}
+            {isActive ? 'Stop' : 'Start'}
           </Button>
         </div>
       </CardContent>

@@ -40,16 +40,28 @@ export interface TherapyResource {
   recommendedFor: string[];
 }
 
-export interface CrisisSupport {
-  emergencyContacts: string[];
-  helplineNumbers: string[];
-  groundingExercises: string[];
-  safetyPlan: string;
-}
-
 export interface WeeklyReport {
   moodSummary: MoodAnalytics;
   journalHighlights: string[];
   progressTowardsGoals: number;
   recommendedFocus: string[];
+}
+
+export interface Message {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+}
+
+export interface ChatResponse {
+  message: Message;
+}
+
+export interface AudioResponse {
+  text: string;
+}
+
+export interface SummaryResponse {
+  summary: {
+    content: string;
+  };
 } 

@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Merriweather:wght@400;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -28,15 +30,6 @@
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
 
-    --success: 142.1 76.2% 36.3%;
-    --success-foreground: 355.7 100% 97.3%;
-
-    --info: 221.2 83.2% 53.3%;
-    --info-foreground: 210 40% 98%;
-
-    --warning: 38 92% 50%;
-    --warning-foreground: 48 96% 89%;
-
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 221.2 83.2% 53.3%;
@@ -54,7 +47,7 @@
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
  
-    --primary: 217.2 91.2% 59.8%;
+    --primary: 210 40% 98%;
     --primary-foreground: 222.2 47.4% 11.2%;
  
     --secondary: 217.2 32.6% 17.5%;
@@ -68,71 +61,62 @@
  
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-
-    --success: 142.1 70.6% 45.3%;
-    --success-foreground: 144.9 80.4% 10%;
-
-    --info: 217.2 91.2% 59.8%;
-    --info-foreground: 222.2 47.4% 11.2%;
-
-    --warning: 48 96% 89%;
-    --warning-foreground: 38 92% 50%;
  
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
+    --ring: 212.7 26.8% 83.9%;
   }
 }
  
 @layer base {
   * {
-    @apply border-border;
+    @apply border-[hsl(var(--border))];
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-[hsl(var(--background))] text-[hsl(var(--foreground))];
+    font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
 
-.message-bubble {
-  @apply rounded-lg p-3 my-1;
-}
+@layer components {
+  .message-bubble {
+    @apply p-4 rounded-lg mb-4 max-w-[80%];
+  }
 
-.user-message {
-  @apply bg-primary text-primary-foreground;
-}
+  .message-bubble.user {
+    @apply bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] ml-auto;
+  }
 
-.assistant-message {
-  @apply bg-secondary text-secondary-foreground;
-}
+  .message-bubble.assistant {
+    @apply bg-[hsl(var(--secondary))] text-[hsl(var(--secondary-foreground))] mr-auto;
+  }
 
-.system-message {
-  @apply bg-muted text-muted-foreground text-sm;
-}
+  .message-bubble.system {
+    @apply bg-[hsl(var(--muted))] text-[hsl(var(--muted-foreground))] mx-auto;
+  }
 
-.input-container {
-  @apply flex gap-2 items-center;
-}
+  .chat-container {
+    @apply flex flex-col h-[calc(100vh-200px)] overflow-y-auto p-4;
+  }
 
-.controls-container {
-  @apply flex gap-2 items-center justify-between;
-}
+  .input-container {
+    @apply fixed bottom-0 left-0 right-0 p-4 bg-[hsl(var(--background))] border-t border-[hsl(var(--border))];
+  }
 
-.btn-icon {
-  @apply hover:bg-accent hover:text-accent-foreground;
-}
+  .input-field {
+    @apply w-full p-2 rounded-lg border border-[hsl(var(--border))] focus:ring-2 focus:ring-[hsl(var(--ring))] focus:border-transparent;
+  }
 
-.card-hover {
-  @apply transition-all duration-200 hover:shadow-lg hover:scale-[1.02];
-}
+  .button {
+    @apply px-4 py-2 rounded-lg bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] hover:bg-[hsl(var(--primary))/0.9] focus:ring-2 focus:ring-[hsl(var(--ring))] focus:ring-offset-2;
+  }
 
-/* Breathing animation */
-@keyframes breathe {
-  0%, 100% { transform: scale(1); opacity: 0.3; }
-  50% { transform: scale(1.5); opacity: 1; }
-}
+  .settings-container {
+    @apply p-6 bg-[hsl(var(--card))] text-[hsl(var(--card-foreground))] rounded-lg shadow-lg;
+  }
 
-.breathing-circle {
-  @apply rounded-full bg-primary/20;
-  animation: breathe 4s ease-in-out infinite;
+  .toggle-switch {
+    @apply relative inline-flex h-6 w-11 items-center rounded-full bg-[hsl(var(--muted))] transition-colors focus:outline-none focus:ring-2 focus:ring-[hsl(var(--ring))] focus:ring-offset-2;
+  }
 }
 

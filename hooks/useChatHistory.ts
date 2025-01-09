@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { storage, STORAGE_KEYS, ChatMessage } from '@/services/storage';
-import { usePreferences } from '@/contexts/PreferencesContext';
+import { usePreferences } from '@/app/providers/preferences-provider';
 
 export function useChatHistory() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);

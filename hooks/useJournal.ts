@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { storage, STORAGE_KEYS, JournalEntry } from '@/services/storage';
-import { usePreferences } from '@/contexts/PreferencesContext';
+import { usePreferences } from '@/app/providers/preferences-provider';
 import { v4 as uuidv4 } from 'uuid';
 
 export function useJournal() {

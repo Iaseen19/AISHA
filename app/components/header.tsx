@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { UserSettings } from '@/components/UserSettings'
-import { usePreferences } from '@/contexts/PreferencesContext'
+import { usePreferences } from '@/app/providers/preferences-provider'
 import { motion } from 'framer-motion'
 
 export default function Header() {

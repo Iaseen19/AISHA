@@ -1,410 +1,151 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useCallback, useEffect } from 'react'
+import { useChat } from 'ai/react'
+import { Message } from 'ai'
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { useRouter } from 'next/navigation'
-import { MoodTracker } from '@/components/MoodTracker'
-import { JournalPrompt } from '@/components/JournalPrompt'
-import { ProgressView } from '@/components/ProgressView'
-import { UserSettings } from '@/components/UserSettings'
-import { WeeklyReport } from '@/components/WeeklyReport'
-import { EnhancedJournal } from '@/components/EnhancedJournal'
-import { BreathingExercise } from '@/components/BreathingExercise'
-import { CrisisSupport } from '@/components/CrisisSupport'
-import { ResourceLibrary } from '@/components/ResourceLibrary'
-import { GoalTracker } from '@/components/GoalTracker'
-import { usePreferences } from '@/contexts/PreferencesContext'
+import { Textarea } from "@/components/ui/textarea"
+import { MessageList } from "../components/MessageList"
+import { VoiceNotes } from "@/components/VoiceNotes"
+import { UserSettings } from "@/components/UserSettings"
+import { Assessment } from "@/components/Assessment"
+import { MoodTracker } from "@/components/MoodTracker"
+import { BreathingExercise } from "@/components/BreathingExercise"
+import { DataAnalytics } from "@/components/DataAnalytics"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Square, Mic } from 'lucide-react'
+import { Settings, Sun, Moon } from 'lucide-react'
+import { useTheme } from 'next-themes'
 
-export default function VoiceChat() {
-  const [messages, setMessages] = useState<{ role: string; content: string }[]>([])
-  const [isRecording, setIsRecording] = useState(false)
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [inputText, setInputText] = useState('')
-  const recognition = useRef<any>(null)
-  const router = useRouter()
-  const { preferences } = usePreferences()
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+export default function Home() {
+  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat();
+  const [showSettings, setShowSettings] = useState(false);
+  const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
 
+  // Only show theme toggle after mounting to avoid hydration mismatch
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    setMounted(true);
+  }, []);
 
-  useEffect(() => {
-    if (preferences.autoSave) {
-      const savedMessages = localStorage.getItem('chatHistory')
-      if (savedMessages) {
-        setMessages(JSON.parse(savedMessages))
-      }
-    }
-  }, [preferences.autoSave])
-
-  useEffect(() => {
-    if (preferences.autoSave) {
-      localStorage.setItem('chatHistory', JSON.stringify(messages))
-    }
-  }, [messages, preferences.autoSave])
-
-  const handleSendMessage = async () => {
-    if (!inputText.trim()) return;
-
-    try {
-      setIsProcessing(true);
-      setMessages(prev => [...prev, { role: 'user', content: inputText }]);
-
-      const chatResponse = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: inputText }),
-      });
-
-      if (!chatResponse.ok) {
-        throw new Error('Chat response failed');
-      }
-
-      const data = await chatResponse.json();
-      setMessages(prev => [...prev, { role: 'assistant', content: data.response.content }]);
-      setInputText('');
-    } catch (error) {
-      console.error('Error:', error);
-      setMessages(prev => [...prev, { 
-        role: 'system', 
-        content: 'Sorry, there was an error processing your message.' 
-      }]);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-
-  const startRecording = async () => {
-    if (!preferences.voiceEnabled) {
-      setMessages(prev => [...prev, { 
-        role: 'system', 
-        content: 'Voice input is disabled in settings.' 
-      }]);
-      return;
-    }
-
-    try {
-      // First check if the browser supports getUserMedia
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Your browser does not support audio recording');
-      }
-
-      // Check if we already have permission
-      const permissionResult = await navigator.permissions.query({ name: 'microphone' as PermissionName });
-      
-      if (permissionResult.state === 'denied') {
-        throw new Error('Microphone access is blocked. Please allow access in your browser settings.');
-      }
-
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        } 
-      });
-
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'audio/webm;codecs=opus'
-      });
-      const chunks: BlobPart[] = [];
-      
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) {
-          chunks.push(e.data);
-        }
-      };
-
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(chunks, { type: 'audio/webm;codecs=opus' });
-        
-        // Create FormData and append the audio file
-        const formData = new FormData();
-        formData.append('audio', audioBlob, 'recording.webm');
-
-        try {
-          setIsProcessing(true);
-          // Send audio for transcription
-          const transcriptionResponse = await fetch('/api/audio', {
-            method: 'POST',
-            body: formData,
-          });
-
-          if (!transcriptionResponse.ok) {
-            throw new Error('Transcription failed');
-          }
-
-          const { text } = await transcriptionResponse.json();
-          
-          if (!text) {
-            throw new Error('No transcription received');
-          }
-
-          // Add transcribed text as user message
-          setMessages(prev => [...prev, { role: 'user', content: text }]);
-
-          // Process transcribed text with chat API
-          const chatResponse = await fetch('/api/chat', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: text }),
-          });
-
-          if (!chatResponse.ok) {
-            throw new Error('Chat response failed');
-          }
-
-          const data = await chatResponse.json();
-          setMessages(prev => [...prev, { 
-            role: 'assistant', 
-            content: data.response.content 
-          }]);
-        } catch (error) {
-          console.error('Processing error:', error);
-          setMessages(prev => [...prev, { 
-            role: 'system', 
-            content: 'Sorry, there was an error processing your voice message.' 
-          }]);
-        } finally {
-          setIsProcessing(false);
-        }
-      };
-
-      mediaRecorderRef.current = mediaRecorder;
-      mediaRecorder.start();
-      setIsRecording(true);
-    } catch (error: any) {
-      console.error('Error starting recording:', error);
-      setMessages(prev => [...prev, { 
-        role: 'system', 
-        content: error.message || 'Could not access microphone. Please check your browser permissions.' 
-      }]);
-      setIsRecording(false);
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
-      setIsRecording(false);
-    }
-  };
-
-  const handleViewSummary = async () => {
-    try {
-      setIsProcessing(true);
-      const response = await fetch('/api/summary', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          conversation: messages.map(m => `${m.role}: ${m.content}`).join('\n')
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Summary generation failed');
-      }
-      
-      const data = await response.json();
-      localStorage.setItem('sessionSummary', data.summary.content);
-      router.push('/summary');
-    } catch (error) {
-      console.error('Error generating summary:', error);
-      setMessages(prev => [...prev, { 
-        role: 'system', 
-        content: 'Error generating summary. Please try again.' 
-      }]);
-    } finally {
-      setIsProcessing(false);
-    }
-  }
+  const handleSendMessage = useCallback(async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    handleSubmit(e);
+  }, [handleSubmit]);
 
   return (
-    <div className="min-h-screen bg-off-white">
-      {/* Header */}
-      <header className="sticky top-0 z-50 w-full border-b border-light-gray bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-        <div className="container flex h-14 items-center justify-between">
-          <h1 className="font-serif text-h2 font-bold text-dark-gray">AISHA Therapy</h1>
-          <div className="flex items-center space-x-4">
-            <CrisisSupport />
-            <UserSettings />
-          </div>
+    <div className="flex flex-col min-h-screen bg-white dark:bg-[#343541]">
+      <header className="flex justify-between items-center p-4 border-b bg-white dark:bg-[#343541] border-gray-200 dark:border-gray-600/50">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">AISHA – AI Supported Health Assistant</h1>
+        <div className="flex items-center gap-4">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="relative"
+            aria-label="Toggle theme"
+          >
+            {mounted && (theme === 'dark' ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />)}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setShowSettings(!showSettings)}
+            className="relative"
+            aria-label="Settings"
+          >
+            <Settings className="h-5 w-5" />
+          </Button>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="container py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left Sidebar - Support Tools */}
-          <div className="lg:col-span-3 space-y-6">
-            <div className="sticky top-24">
-              <Tabs defaultValue="mood" className="w-full">
-                <TabsList className="w-full grid grid-cols-3 p-1 bg-sand rounded-lg">
-                  <TabsTrigger value="mood" className="data-[state=active]:bg-healing data-[state=active]:text-white">
-                    Mood
-                  </TabsTrigger>
-                  <TabsTrigger value="progress" className="data-[state=active]:bg-healing data-[state=active]:text-white">
-                    Progress
-                  </TabsTrigger>
-                  <TabsTrigger value="goals" className="data-[state=active]:bg-healing data-[state=active]:text-white">
-                    Goals
-                  </TabsTrigger>
-                </TabsList>
-                <TabsContent value="mood">
-                  <Card className="shadow-card">
-                    <CardContent className="p-6">
-                      <MoodTracker />
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-                <TabsContent value="progress">
-                  <Card className="shadow-card">
-                    <CardContent className="p-6">
-                      <ProgressView />
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-                <TabsContent value="goals">
-                  <Card className="shadow-card">
-                    <CardContent className="p-6">
-                      <GoalTracker />
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-              </Tabs>
+      <main className="flex-1 container max-w-5xl mx-auto px-4 py-6">
+        <Tabs defaultValue="chat" className="w-full h-full space-y-6">
+          <TabsList className="grid w-full grid-cols-5 gap-4 p-1">
+            <TabsTrigger value="chat">Chat</TabsTrigger>
+            <TabsTrigger value="mood">Mood</TabsTrigger>
+            <TabsTrigger value="breathing">Breathing</TabsTrigger>
+            <TabsTrigger value="assessment">Assessment</TabsTrigger>
+            <TabsTrigger value="analytics">Analytics</TabsTrigger>
+          </TabsList>
 
-              <Card className="mt-6 shadow-card">
-                <CardContent className="p-6">
-                  <BreathingExercise />
-                </CardContent>
-              </Card>
+          <TabsContent value="chat" className="h-[calc(100vh-16rem)] flex flex-col space-y-4">
+            <div className="flex-1 overflow-auto px-4 py-2">
+              <MessageList messages={messages} />
             </div>
-          </div>
-
-          {/* Main Chat Area */}
-          <div className="lg:col-span-6 flex flex-col h-[calc(100vh-8rem)]">
-            <Card className="flex-1 overflow-hidden shadow-card">
-              <CardContent className="p-6 h-full flex flex-col">
-                <div className="flex-1 overflow-y-auto space-y-4">
-                  {messages.map((msg, index) => (
-                    <div 
-                      key={index} 
-                      className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                        msg.role === 'user' 
-                          ? 'bg-primary text-white ml-4' 
-                          : msg.role === 'system'
-                          ? 'bg-sand text-dark-gray'
-                          : 'bg-lavender text-white mr-4'
-                      }`}>
-                        <p className="text-body">{msg.content}</p>
-                      </div>
-                    </div>
-                  ))}
-                  {isProcessing && (
-                    <div className="voice-processing">
-                      <span></span>
-                      <span></span>
-                      <span></span>
-                    </div>
-                  )}
-                  <div ref={messagesEndRef} />
-                </div>
-
-                {/* Chat Input */}
-                <div className="mt-6 space-y-4">
-                  <div className="flex gap-4">
-                    <Input
-                      value={inputText}
-                      onChange={(e) => setInputText(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSendMessage();
+            <form onSubmit={handleSendMessage} className="border-t border-gray-200 dark:border-gray-600/50 bg-white dark:bg-[#343541] p-4">
+              <div className="max-w-3xl mx-auto flex gap-4 items-end">
+                <div className="flex-1 relative">
+                  <Textarea
+                    value={input}
+                    onChange={handleInputChange}
+                    placeholder="Message AISHA..."
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        if (input.trim()) {
+                          handleSendMessage(new Event('submit') as any);
                         }
-                      }}
-                      placeholder="Type your message..."
-                      disabled={isProcessing || isRecording}
-                      className="flex-1 h-12 rounded-lg border-light-gray focus:border-primary focus:ring-2 focus:ring-primary/20"
-                    />
-                    <Button
-                      onClick={handleSendMessage}
-                      disabled={isProcessing || isRecording || !inputText.trim()}
-                      className="h-12 px-6 bg-primary text-white hover:bg-primary/90 disabled:opacity-50"
-                    >
-                      Send
-                    </Button>
-                  </div>
-
-                  <div className="flex justify-between items-center">
-                    <Button
-                      onClick={isRecording ? stopRecording : startRecording}
-                      variant={isRecording ? "destructive" : "secondary"}
-                      disabled={isProcessing || !preferences.voiceEnabled}
-                      className={`h-12 px-6 flex items-center ${
-                        isRecording 
-                          ? 'bg-error text-white hover:bg-error/90' 
-                          : 'bg-lavender text-white hover:bg-lavender/90'
-                      } disabled:opacity-50`}
-                    >
-                      {isRecording ? (
-                        <>
-                          <Square className="h-4 w-4 mr-2" />
-                          Stop Recording
-                        </>
-                      ) : (
-                        <>
-                          <Mic className="h-4 w-4 mr-2" />
-                          Start Recording
-                        </>
-                      )}
-                    </Button>
-
-                    {messages.length > 0 && (
-                      <Button
-                        onClick={handleViewSummary}
-                        variant="outline"
-                        disabled={isProcessing}
-                        className="h-12 px-6 border-2 border-lavender text-lavender hover:bg-lavender/10 disabled:opacity-50"
-                      >
-                        View Summary
-                      </Button>
-                    )}
-                  </div>
+                      }
+                    }}
+                    className="min-h-[100px] py-3 px-4 rounded-xl border-2 border-gray-200 dark:border-gray-600/50 bg-white dark:bg-[#40414f] focus-visible:ring-1 focus-visible:ring-primary focus-visible:border-primary text-lg resize-none shadow-sm text-gray-900 dark:text-gray-100"
+                    aria-label="Chat input"
+                  />
+                  <Button 
+                    type="submit"
+                    disabled={isLoading || !input.trim()}
+                    className="absolute right-3 bottom-3 p-2 bg-primary hover:bg-primary/90 text-white rounded-lg shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Send message"
+                  >
+                    Send
+                  </Button>
                 </div>
-              </CardContent>
-            </Card>
-          </div>
+                <div className="flex-shrink-0 w-32">
+                  <VoiceNotes onTranscription={(text) => handleInputChange({ target: { value: text } } as any)} />
+                </div>
+              </div>
+            </form>
+          </TabsContent>
 
-          {/* Right Sidebar - Journal and Resources */}
-          <div className="lg:col-span-3 space-y-6">
-            <div className="sticky top-24">
-              <Card className="shadow-card">
-                <CardContent className="p-6">
-                  <h3 className="font-serif text-h3 font-bold text-dark-gray mb-4">Journal</h3>
-                  <EnhancedJournal />
-                </CardContent>
-              </Card>
+          <TabsContent value="mood" className="h-[calc(100vh-16rem)] overflow-auto">
+            <MoodTracker />
+          </TabsContent>
 
-              <Card className="mt-6 shadow-card">
-                <CardContent className="p-6">
-                  <h3 className="font-serif text-h3 font-bold text-dark-gray mb-4">Resources</h3>
-                  <ResourceLibrary />
-                </CardContent>
-              </Card>
+          <TabsContent value="breathing" className="h-[calc(100vh-16rem)] overflow-auto">
+            <BreathingExercise />
+          </TabsContent>
+
+          <TabsContent value="assessment" className="h-[calc(100vh-16rem)] overflow-auto">
+            <Assessment />
+          </TabsContent>
+
+          <TabsContent value="analytics" className="h-[calc(100vh-16rem)] overflow-auto">
+            <DataAnalytics />
+          </TabsContent>
+        </Tabs>
+
+        {showSettings && (
+          <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50">
+            <div className="fixed right-0 top-0 h-full w-[400px] bg-background shadow-lg">
+              <div className="h-full overflow-y-auto">
+                <div className="flex justify-between items-center p-4 border-b">
+                  <h2 className="text-lg font-semibold">Settings</h2>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowSettings(false)}
+                    aria-label="Close settings"
+                  >
+                    <span className="sr-only">Close</span>
+                    ×
+                  </Button>
+                </div>
+                <UserSettings onClose={() => setShowSettings(false)} />
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </main>
     </div>
-  )
+  );
 }
 

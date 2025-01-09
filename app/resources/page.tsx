@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { motion } from "framer-motion"
 import { Phone, Heart, Book, Lightbulb, ExternalLink } from 'lucide-react'
-import { usePreferences } from '@/contexts/PreferencesContext'
+import { usePreferences } from '@/app/providers/preferences-provider'
 
 interface Resource {
   title: string;

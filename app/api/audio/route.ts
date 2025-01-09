@@ -1,41 +1,18 @@
 import { NextResponse } from 'next/server';
-import { pipeline } from '@xenova/transformers';
+import OpenAI from 'openai';
+import { writeFile, unlink } from 'fs/promises';
+import { join } from 'path';
+import { tmpdir } from 'os';
+import { createReadStream } from 'fs';
 
-// Initialize Whisper model
-let whisperPipeline: any = null;
-
-async function initWhisper() {
-  if (!whisperPipeline) {
-    whisperPipeline = await pipeline('automatic-speech-recognition', 'Xenova/whisper-tiny.en');
-  }
-  return whisperPipeline;
-}
-
-async function transcribeAudio(audioData: Float32Array): Promise<string> {
-  try {
-    // Initialize Whisper if not already initialized
-    const transcriber = await initWhisper();
-    
-    // Transcribe audio
-    const result = await transcriber(audioData, {
-      chunk_length_s: 30,
-      stride_length_s: 5,
-      language: 'english',
-      task: 'transcribe',
-      sampling_rate: 16000, // Whisper expects 16kHz audio
-    });
-
-    return result.text;
-  } catch (error) {
-    console.error('Transcription error:', error);
-    throw error;
-  }
-}
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 export async function POST(req: Request) {
   try {
     const formData = await req.formData();
-    const audioFile = formData.get('audio') as File;
+    const audioFile = formData.get('audio') as Blob;
 
     if (!audioFile) {
       return NextResponse.json(
@@ -44,46 +21,52 @@ export async function POST(req: Request) {
       );
     }
 
-    // Convert the audio file to Float32Array
+    // Create a temporary file path
+    const tempFilePath = join(tmpdir(), `audio-${Date.now()}.webm`);
+    
+    // Convert blob to array buffer
     const arrayBuffer = await audioFile.arrayBuffer();
-    const audioContext = new (globalThis.AudioContext || (globalThis as any).webkitAudioContext)();
-    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
-    const audioData = audioBuffer.getChannelData(0);
+    const buffer = Buffer.from(arrayBuffer);
+    
+    // Write the buffer to a temporary file
+    await writeFile(tempFilePath, buffer);
 
-    // Resample to 16kHz if needed
-    let processedAudio = audioData;
-    if (audioBuffer.sampleRate !== 16000) {
-      const ratio = 16000 / audioBuffer.sampleRate;
-      const newLength = Math.round(audioData.length * ratio);
-      processedAudio = new Float32Array(newLength);
-      
-      for (let i = 0; i < newLength; i++) {
-        const position = i / ratio;
-        const index = Math.floor(position);
-        const decimal = position - index;
-        
-        if (index >= audioData.length - 1) {
-          processedAudio[i] = audioData[audioData.length - 1];
-        } else {
-          processedAudio[i] = audioData[index] * (1 - decimal) + audioData[index + 1] * decimal;
-        }
+    try {
+      // Use OpenAI's Whisper API for transcription
+      const transcription = await openai.audio.transcriptions.create({
+        file: createReadStream(tempFilePath),
+        model: "whisper-1",
+        language: "en",
+      });
+
+      return NextResponse.json({ 
+        text: transcription.text,
+        success: true
+      });
+    } catch (transcriptionError: any) {
+      console.error('Transcription error:', transcriptionError);
+      return NextResponse.json(
+        { 
+          error: 'Transcription failed',
+          details: transcriptionError.message 
+        },
+        { status: 500 }
+      );
+    } finally {
+      // Clean up: Delete the temporary file
+      try {
+        await unlink(tempFilePath);
+      } catch (unlinkError) {
+        console.error('Error deleting temporary file:', unlinkError);
       }
     }
-
-    // Use Whisper for transcription
-    const transcription = await transcribeAudio(processedAudio);
-
-    // Clean up
-    await audioContext.close();
-
-    return NextResponse.json({ 
-      text: transcription,
-      success: true
-    });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Audio processing error:', error);
     return NextResponse.json(
-      { error: 'Audio processing failed' },
+      { 
+        error: 'Audio processing failed',
+        details: error.message 
+      },
       { status: 500 }
     );
   }

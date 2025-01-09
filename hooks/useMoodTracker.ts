@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { storage, STORAGE_KEYS, MoodEntry } from '@/services/storage';
-import { usePreferences } from '@/contexts/PreferencesContext';
+import { usePreferences } from '@/app/providers/preferences-provider';
 
 export function useMoodTracker() {
   const [entries, setEntries] = useState<MoodEntry[]>([]);

@@ -1,9 +1,22 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    appDir: true,
+  webpack: (config, { isServer }) => {
+    // Exclude problematic dependencies from client bundle
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        path: false,
+        sharp: false,
+      };
+    }
+    return config;
   },
-  reactStrictMode: true,
+  experimental: {
+    serverActions: {
+      bodySizeLimit: '10mb'
+    },
+  }
 }
 
 module.exports = nextConfig
