@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { hash } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { UserRole } from "@prisma/client";
 import * as z from "zod";
 
 const registerSchema = z.object({
@@ -13,20 +12,15 @@ const registerSchema = z.object({
 
 export async function POST(req: Request) {
   try {
-    console.log("Registration attempt started");
     const body = await req.json();
-    console.log("Registration request body:", { ...body, password: '[REDACTED]' });
-    
     const { name, email, password, isAdmin } = registerSchema.parse(body);
 
     // Check if user already exists
-    console.log("Checking for existing user:", email);
     const existingUser = await prisma.user.findUnique({
       where: { email },
     });
 
     if (existingUser) {
-      console.log("User already exists:", email);
       return NextResponse.json(
         { message: "User with this email already exists" },
         { status: 400 }
@@ -34,17 +28,15 @@ export async function POST(req: Request) {
     }
 
     // Hash password
-    console.log("Hashing password for user:", email);
     const hashedPassword = await hash(password, 12);
 
     // Create user
-    console.log("Creating new user:", { name, email, role: isAdmin ? "ADMIN" : "USER" });
     const user = await prisma.user.create({
       data: {
         name,
         email,
         passwordHash: hashedPassword,
-        role: isAdmin ? UserRole.ADMIN : UserRole.USER,
+        role: isAdmin ? 'ADMIN' : 'PATIENT',
       },
       select: {
         id: true,
@@ -54,7 +46,6 @@ export async function POST(req: Request) {
       },
     });
 
-    console.log("User created successfully:", { id: user.id, email: user.email, role: user.role });
     return NextResponse.json(
       { message: "User created successfully", user },
       { status: 201 }

@@ -13,153 +13,132 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id            String    @id @default(cuid())
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  email         String    @unique
-  name          String?
-  passwordHash  String
-  role          UserRole  @default(USER)
-  preferences   Json?     // Stores user preferences as JSON
-  
-  // Relations
-  sessions      Session[]
-  journalEntries JournalEntry[]
-  moodEntries   MoodEntry[]
-  goals         Goal[]
-  
-  @@map("users")
-}
-
 enum UserRole {
-  USER
+  PATIENT
   THERAPIST
   ADMIN
 }
 
-model Session {
-  id            String    @id @default(cuid())
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  startTime     DateTime
-  endTime       DateTime?
-  summary       String?   @db.Text
-  transcript    String?   @db.Text
-  
-  // Relations
-  userId        String
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages      Message[]
-  
-  @@map("sessions")
-}
-
-model Message {
-  id            String    @id @default(cuid())
-  createdAt     DateTime  @default(now())
-  content       String    @db.Text
-  role          MessageRole
-  
-  // Relations
-  sessionId     String
-  session       Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  
-  @@map("messages")
-}
-
-enum MessageRole {
-  USER
-  ASSISTANT
-  SYSTEM
-}
-
-model JournalEntry {
-  id            String    @id @default(cuid())
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  content       String    @db.Text
-  mood          Int       // Scale from 1-10
-  tags          String[]
-  
-  // Relations
-  userId        String
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  @@map("journal_entries")
-}
-
-model MoodEntry {
-  id            String    @id @default(cuid())
-  createdAt     DateTime  @default(now())
-  value         Int       // Scale from 1-10
-  note          String?   @db.Text
-  
-  // Relations
-  userId        String
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  @@map("mood_entries")
-}
-
-model Goal {
-  id            String    @id @default(cuid())
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  title         String
-  description   String    @db.Text
-  status        GoalStatus @default(IN_PROGRESS)
-  dueDate       DateTime?
-  completedAt   DateTime?
-  
-  // Relations
-  userId        String
-  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tasks         Task[]
-  
-  @@map("goals")
-}
-
-enum GoalStatus {
-  NOT_STARTED
-  IN_PROGRESS
+enum AppointmentStatus {
+  SCHEDULED
   COMPLETED
-  ON_HOLD
+  CANCELLED
 }
 
-model Task {
-  id            String    @id @default(cuid())
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  title         String
-  completed     Boolean   @default(false)
-  completedAt   DateTime?
-  
-  // Relations
-  goalId        String
-  goal          Goal      @relation(fields: [goalId], references: [id], onDelete: Cascade)
-  
-  @@map("tasks")
+enum AppointmentType {
+  VIDEO
+  CHAT
+  VOICE
+}
+
+model User {
+  id                String            @id @default(cuid())
+  email             String            @unique
+  name              String
+  password          String
+  role              UserRole          @default(PATIENT)
+  subscriptionTier  String?
+  language          String?           @default("en")
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  patientAppointments Appointment[]   @relation("PatientAppointments")
+  therapistInfo     Therapist?
+  emergencyContacts EmergencyContact[]
+  analytics         AnalyticsData[]
+  hostedEvents      CommunityEvent[]  @relation("EventHost")
+  participatedEvents CommunityEvent[] @relation("EventParticipants")
+}
+
+model Therapist {
+  id              String        @id @default(cuid())
+  user            User          @relation(fields: [userId], references: [id])
+  userId          String        @unique
+  specializations String[]
+  rating          Float?
+  availability    Availability[]
+  appointments    Appointment[] @relation("TherapistAppointments")
+}
+
+model EmergencyContact {
+  id           String   @id @default(cuid())
+  name         String
+  relationship String
+  phone        String
+  email        String?
+  user         User     @relation(fields: [userId], references: [id])
+  userId       String
+}
+
+model Appointment {
+  id          String           @id @default(cuid())
+  therapist   Therapist        @relation("TherapistAppointments", fields: [therapistId], references: [id])
+  therapistId String
+  patient     User             @relation("PatientAppointments", fields: [patientId], references: [id])
+  patientId   String
+  datetime    DateTime
+  status      AppointmentStatus @default(SCHEDULED)
+  notes       String?
+  type        AppointmentType
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+}
+
+model AnalyticsData {
+  id              String   @id @default(cuid())
+  user            User     @relation(fields: [userId], references: [id])
+  userId          String
+  sessionDuration Int
+  moodScores     Int[]
+  interactionCount Int
+  progressMetrics Json[]
+  createdAt       DateTime @default(now())
+}
+
+model CommunityEvent {
+  id              String   @id @default(cuid())
+  title           String
+  description     String
+  datetime        DateTime
+  type            String
+  host            User     @relation("EventHost", fields: [hostId], references: [id])
+  hostId          String
+  participants    User[]   @relation("EventParticipants")
+  maxParticipants Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
 
 model Resource {
-  id            String    @id @default(cuid())
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  title         String
-  description   String    @db.Text
-  url           String?
-  type          ResourceType
-  tags          String[]
-  
-  @@map("resources")
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  category    String
+  content     String   @db.Text
+  tags        String[]
+  language    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
-enum ResourceType {
-  ARTICLE
-  VIDEO
-  EXERCISE
-  CRISIS
-  MEDITATION
-  WORKSHEET
+model Availability {
+  id          String    @id @default(cuid())
+  therapist   Therapist @relation(fields: [therapistId], references: [id])
+  therapistId String
+  dayOfWeek   Int
+  startTime   String
+  endTime     String
+  timezone    String
+}
+
+model SubscriptionPlan {
+  id                 String   @id @default(cuid())
+  name               String
+  price             Float
+  features          String[]
+  maxSessions       Int?
+  maxResources      Int?
+  includesCommunity Boolean
+  includesAnalytics Boolean
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 }
