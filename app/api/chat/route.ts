@@ -1,29 +1,39 @@
-import { Groq } from 'groq-sdk';
 import { NextResponse } from 'next/server';
-
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
+import { groq, CHAT_MODEL_CONFIG } from '@/app/services/ai';
+import { createConversationChain, processHistory } from '@/app/services/langchain';
 
 export async function POST(req: Request) {
   try {
     const { messages } = await req.json();
 
-    // Add system message for concise responses
+    // Use LangChain for complex conversations (more than 5 messages)
+    if (messages.length > 5) {
+      const chain = createConversationChain();
+      await processHistory(messages.slice(0, -1), chain); // Process all but the last message
+      const response = await chain.call({ input: messages[messages.length - 1].content });
+      
+      return NextResponse.json({ 
+        message: {
+          role: 'assistant',
+          content: response.response
+        }
+      });
+    }
+
+    // Use direct Groq API for simple conversations
     const systemMessage = {
       role: 'system',
-      content: 'You are a concise AI health assistant. Keep your responses brief, clear, and to the point. Aim for 2-3 sentences when possible. Use simple language and be direct.'
+      content: CHAT_MODEL_CONFIG.systemPrompt
     };
 
-    // Get completion
     const response = await groq.chat.completions.create({
       messages: [systemMessage, ...messages.map((msg: any) => ({
         role: msg.role,
         content: msg.content,
       }))],
-      model: "mixtral-8x7b-32768",
-      temperature: 0.5, // Lower temperature for more focused responses
-      max_tokens: 150, // Limit response length
+      model: CHAT_MODEL_CONFIG.model,
+      temperature: CHAT_MODEL_CONFIG.temperature,
+      max_tokens: CHAT_MODEL_CONFIG.max_tokens,
     });
 
     return NextResponse.json({ 

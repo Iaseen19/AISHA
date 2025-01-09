@@ -1,41 +1,37 @@
-# AISHA - AI Support Healing Agent
+# AISHA - AI Supported Health Assistant
 
-AISHA is an AI-powered therapy web application designed to provide empathetic and supportive mental health assistance. The application combines voice interaction, mood tracking, journaling, and therapeutic resources to create a comprehensive mental health support platform.
+AISHA is a modern web application that provides mental health support through AI-powered conversations, mood tracking, breathing exercises, and analytics.
 
 ## Features
 
-- **Voice Chat**: Natural conversation with AI using voice or text input
-- **Mood Tracking**: Track and visualize emotional states over time
-- **Progress Monitoring**: View therapy progress and achievements
-- **Goal Setting**: Set and track personal development goals
-- **Breathing Exercises**: Guided breathing exercises for stress relief
-- **Journal**: Enhanced journaling with AI-powered prompts
-- **Resource Library**: Access to mental health resources and coping strategies
-- **Crisis Support**: Quick access to emergency mental health resources
+- 💬 Real-time AI chat with voice input support
+- 📊 Conversation memory and context awareness
+- 🔍 Semantic search across past conversations
+- 🎯 Emotional analysis and personalized responses
+- 📚 Mental health resource recommendations
+- 📊 Mood tracking and analytics
+- 🫁 Guided breathing exercises
+- 📝 Mental health assessments
+- 🌓 Dark/Light mode support
+- 🎯 Secure and private
 
 ## Tech Stack
 
-- **Frontend**: Next.js 15, React 18, TypeScript
-- **Styling**: Tailwind CSS, shadcn/ui components
-- **Voice Processing**: Whisper (local transcription)
-- **AI Chat**: Ollama with Mistral model
-- **State Management**: React Context
-- **Authentication**: NextAuth.js
-- **Database**: PostgreSQL with Prisma ORM
+- Next.js 14
+- TypeScript
+- Tailwind CSS
+- LangChain.js for AI orchestration
+- OpenAI Whisper API (for voice transcription)
+- Groq API (Mixtral-8x7b-32768 model for chat)
+- Vector storage for conversation memory
+- Shadcn/ui Components
+- Vercel AI SDK
 
 ## Getting Started
 
-### Prerequisites
-
-- Node.js (v20.0.0 or higher)
-- PostgreSQL
-- Ollama (for chat functionality)
-
-### Installation
-
 1. Clone the repository:
 ```bash
-git clone https://github.com/Iaseen19/AISHA.git
+git clone https://github.com/yourusername/aisha-webapp.git
 cd aisha-webapp
 ```
 
@@ -44,77 +40,56 @@ cd aisha-webapp
 npm install
 ```
 
-3. Set up environment variables:
-Create a `.env` file in the root directory with the following variables:
+3. Create a `.env.local` file in the root directory with your API keys:
 ```env
-# Database
-DATABASE_URL="postgresql://username:password@localhost:5432/aisha_db?schema=public"
-
-# Authentication
-NEXTAUTH_SECRET="your-secret-key"
-NEXTAUTH_URL="http://localhost:3000"
-
-# Feature Flags
-ENABLE_VOICE_CHAT=true
-ENABLE_MOOD_TRACKING=true
+OPENAI_API_KEY=your_openai_api_key
+GROQ_API_KEY=your_groq_api_key
 ```
 
-4. Initialize the database:
-```bash
-npx prisma migrate dev
-```
-
-5. Start Ollama server:
-```bash
-ollama serve
-```
-
-6. Start the development server:
+4. Run the development server:
 ```bash
 npm run dev
 ```
 
-The application will be available at `http://localhost:3000`
+5. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-## Design System
+## Environment Variables
 
-AISHA uses a custom design system focused on accessibility and emotional safety. Key design elements include:
+- `OPENAI_API_KEY`: Your OpenAI API key for voice transcription (Whisper API)
+- `GROQ_API_KEY`: Your Groq API key for chat completion (Mixtral-8x7b-32768)
 
-- **Color Palette**: Carefully selected colors for emotional resonance
-- **Typography**: Inter for readability, Merriweather for warmth
-- **Components**: Consistent, accessible UI components
-- **Voice Interface**: Clear visual feedback for voice interactions
-- **Responsive Design**: Mobile-first approach with desktop optimization
+## Features in Detail
 
-## Project Structure
+### AI Chat
+- Real-time conversations using Groq's Mixtral-8x7b-32768 model
+- Voice input support using OpenAI's Whisper API
+- Streaming responses for better UX
+- Optimized for concise, focused responses
 
-```
-aisha-webapp/
-├── app/                    # Next.js app directory
-│   ├── api/               # API routes
-│   ├── components/        # React components
-│   └── pages/            # Page components
-├── prisma/                # Database schema and migrations
-├── public/                # Static assets
-├── styles/                # Global styles and theme
-└── utils/                 # Utility functions
-```
+### Mood Tracking
+- Daily mood logging
+- Trend analysis
+- Progress visualization
+
+### Breathing Exercises
+- Guided breathing techniques
+- Customizable durations
+- Visual animations
+
+### Assessment
+- Mental health check-ins
+- Progress monitoring
+- Personalized recommendations
+
+### Analytics
+- Data visualization
+- Progress tracking
+- Insights and patterns
 
 ## Contributing
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- OpenAI's Whisper for voice transcription
-- Ollama for local AI model hosting
-- shadcn/ui for component library
-- All contributors and supporters of the project
+This project is licensed under the MIT License - see the LICENSE file for details.
