@@ -34,5 +34,22 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
-next-env.d.ts 
-.vscode
+next-env.d.ts
+
+# IDE
+.idea/
+.vscode/
+
+# Prisma
+/prisma/migrations/
+/prisma/*.db
+/prisma/*.sqlite
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

@@ -17,6 +17,7 @@ import { ResourceLibrary } from '@/components/ResourceLibrary'
 import { GoalTracker } from '@/components/GoalTracker'
 import { usePreferences } from '@/contexts/PreferencesContext'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Square, Mic } from 'lucide-react'
 
 export default function VoiceChat() {
   const [messages, setMessages] = useState<{ role: string; content: string }[]>([])
@@ -27,6 +28,7 @@ export default function VoiceChat() {
   const router = useRouter()
   const { preferences } = usePreferences()
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -88,31 +90,70 @@ export default function VoiceChat() {
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      
-      if (!window.webkitSpeechRecognition && !window.SpeechRecognition) {
-        throw new Error('Speech recognition is not supported in this browser. Please use Chrome.');
+      // First check if the browser supports getUserMedia
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Your browser does not support audio recording');
       }
 
-      recognition.current = new (window.webkitSpeechRecognition || window.SpeechRecognition)();
-      recognition.current.lang = 'en-US';
-      recognition.current.continuous = false;
-      recognition.current.interimResults = false;
+      // Check if we already have permission
+      const permissionResult = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+      
+      if (permissionResult.state === 'denied') {
+        throw new Error('Microphone access is blocked. Please allow access in your browser settings.');
+      }
 
-      recognition.current.onstart = () => {
-        setIsRecording(true);
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
+        } 
+      });
+
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus'
+      });
+      const chunks: BlobPart[] = [];
+      
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunks.push(e.data);
+        }
       };
 
-      recognition.current.onresult = async (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        setMessages(prev => [...prev, { role: 'user', content: transcript }]);
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(chunks, { type: 'audio/webm;codecs=opus' });
+        
+        // Create FormData and append the audio file
+        const formData = new FormData();
+        formData.append('audio', audioBlob, 'recording.webm');
 
         try {
           setIsProcessing(true);
+          // Send audio for transcription
+          const transcriptionResponse = await fetch('/api/audio', {
+            method: 'POST',
+            body: formData,
+          });
+
+          if (!transcriptionResponse.ok) {
+            throw new Error('Transcription failed');
+          }
+
+          const { text } = await transcriptionResponse.json();
+          
+          if (!text) {
+            throw new Error('No transcription received');
+          }
+
+          // Add transcribed text as user message
+          setMessages(prev => [...prev, { role: 'user', content: text }]);
+
+          // Process transcribed text with chat API
           const chatResponse = await fetch('/api/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: transcript }),
+            body: JSON.stringify({ message: text }),
           });
 
           if (!chatResponse.ok) {
@@ -125,46 +166,36 @@ export default function VoiceChat() {
             content: data.response.content 
           }]);
         } catch (error) {
-          console.error('Error:', error);
+          console.error('Processing error:', error);
           setMessages(prev => [...prev, { 
             role: 'system', 
-            content: 'Sorry, there was an error processing your message.' 
+            content: 'Sorry, there was an error processing your voice message.' 
           }]);
         } finally {
           setIsProcessing(false);
         }
       };
 
-      recognition.current.onerror = (event: any) => {
-        console.error('Speech recognition error:', event.error);
-        setMessages(prev => [...prev, { 
-          role: 'system', 
-          content: `Error with speech recognition: ${event.error}. Please try again.` 
-        }]);
-        setIsRecording(false);
-      };
-
-      recognition.current.onend = () => {
-        setIsRecording(false);
-      };
-
-      recognition.current.start();
-    } catch (error) {
-      console.error('Error starting speech recognition:', error);
+      mediaRecorderRef.current = mediaRecorder;
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (error: any) {
+      console.error('Error starting recording:', error);
       setMessages(prev => [...prev, { 
         role: 'system', 
-        content: 'Speech recognition not supported or permission denied. Please use Chrome and allow microphone access.' 
+        content: error.message || 'Could not access microphone. Please check your browser permissions.' 
       }]);
       setIsRecording(false);
     }
   };
 
   const stopRecording = () => {
-    if (recognition.current) {
-      recognition.current.stop()
-      setIsRecording(false)
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
+      setIsRecording(false);
     }
-  }
+  };
 
   const handleViewSummary = async () => {
     try {
@@ -196,146 +227,183 @@ export default function VoiceChat() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-4">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">AI Therapy Session</h1>
-        <div className="flex items-center gap-4">
-          <CrisisSupport />
-          <UserSettings />
+    <div className="min-h-screen bg-off-white">
+      {/* Header */}
+      <header className="sticky top-0 z-50 w-full border-b border-light-gray bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
+        <div className="container flex h-14 items-center justify-between">
+          <h1 className="font-serif text-h2 font-bold text-dark-gray">AISHA Therapy</h1>
+          <div className="flex items-center space-x-4">
+            <CrisisSupport />
+            <UserSettings />
+          </div>
         </div>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Left Column: Support Tools */}
-        <div className="space-y-4">
-          <Tabs defaultValue="mood" className="w-full">
-            <TabsList className="w-full grid grid-cols-3">
-              <TabsTrigger value="mood">Mood</TabsTrigger>
-              <TabsTrigger value="progress">Progress</TabsTrigger>
-              <TabsTrigger value="goals">Goals</TabsTrigger>
-            </TabsList>
-            <TabsContent value="mood">
-              <Card>
-                <CardContent className="p-4">
-                  <MoodTracker />
+      </header>
+
+      {/* Main Content */}
+      <main className="container py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Left Sidebar - Support Tools */}
+          <div className="lg:col-span-3 space-y-6">
+            <div className="sticky top-24">
+              <Tabs defaultValue="mood" className="w-full">
+                <TabsList className="w-full grid grid-cols-3 p-1 bg-sand rounded-lg">
+                  <TabsTrigger value="mood" className="data-[state=active]:bg-healing data-[state=active]:text-white">
+                    Mood
+                  </TabsTrigger>
+                  <TabsTrigger value="progress" className="data-[state=active]:bg-healing data-[state=active]:text-white">
+                    Progress
+                  </TabsTrigger>
+                  <TabsTrigger value="goals" className="data-[state=active]:bg-healing data-[state=active]:text-white">
+                    Goals
+                  </TabsTrigger>
+                </TabsList>
+                <TabsContent value="mood">
+                  <Card className="shadow-card">
+                    <CardContent className="p-6">
+                      <MoodTracker />
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+                <TabsContent value="progress">
+                  <Card className="shadow-card">
+                    <CardContent className="p-6">
+                      <ProgressView />
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+                <TabsContent value="goals">
+                  <Card className="shadow-card">
+                    <CardContent className="p-6">
+                      <GoalTracker />
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
+
+              <Card className="mt-6 shadow-card">
+                <CardContent className="p-6">
+                  <BreathingExercise />
                 </CardContent>
               </Card>
-            </TabsContent>
-            <TabsContent value="progress">
-              <Card>
-                <CardContent className="p-4">
-                  <ProgressView />
-                </CardContent>
-              </Card>
-            </TabsContent>
-            <TabsContent value="goals">
-              <Card>
-                <CardContent className="p-4">
-                  <GoalTracker />
-                </CardContent>
-              </Card>
-            </TabsContent>
-          </Tabs>
+            </div>
+          </div>
 
-          <WeeklyReport />
-          
-          <Card>
-            <CardContent className="p-4">
-              <BreathingExercise />
-            </CardContent>
-          </Card>
+          {/* Main Chat Area */}
+          <div className="lg:col-span-6 flex flex-col h-[calc(100vh-8rem)]">
+            <Card className="flex-1 overflow-hidden shadow-card">
+              <CardContent className="p-6 h-full flex flex-col">
+                <div className="flex-1 overflow-y-auto space-y-4">
+                  {messages.map((msg, index) => (
+                    <div 
+                      key={index} 
+                      className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div className={`max-w-[80%] rounded-lg px-4 py-2 ${
+                        msg.role === 'user' 
+                          ? 'bg-primary text-white ml-4' 
+                          : msg.role === 'system'
+                          ? 'bg-sand text-dark-gray'
+                          : 'bg-lavender text-white mr-4'
+                      }`}>
+                        <p className="text-body">{msg.content}</p>
+                      </div>
+                    </div>
+                  ))}
+                  {isProcessing && (
+                    <div className="voice-processing">
+                      <span></span>
+                      <span></span>
+                      <span></span>
+                    </div>
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
 
-          <Card>
-            <CardContent className="p-4">
-              <ResourceLibrary />
-            </CardContent>
-          </Card>
-        </div>
+                {/* Chat Input */}
+                <div className="mt-6 space-y-4">
+                  <div className="flex gap-4">
+                    <Input
+                      value={inputText}
+                      onChange={(e) => setInputText(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendMessage();
+                        }
+                      }}
+                      placeholder="Type your message..."
+                      disabled={isProcessing || isRecording}
+                      className="flex-1 h-12 rounded-lg border-light-gray focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    />
+                    <Button
+                      onClick={handleSendMessage}
+                      disabled={isProcessing || isRecording || !inputText.trim()}
+                      className="h-12 px-6 bg-primary text-white hover:bg-primary/90 disabled:opacity-50"
+                    >
+                      Send
+                    </Button>
+                  </div>
 
-        {/* Middle Column: Chat */}
-        <div className="md:col-span-2">
-          <Card className="mb-4">
-            <CardContent className="p-4 min-h-[400px] max-h-[600px] overflow-y-auto">
-              {messages.map((msg, index) => (
-                <div 
-                  key={index} 
-                  className={`mb-4 flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div className={`message-bubble max-w-[80%] ${
-                    msg.role === 'user' 
-                      ? 'user-message' 
-                      : msg.role === 'system'
-                      ? 'system-message'
-                      : 'assistant-message'
-                  }`}>
-                    {msg.content}
+                  <div className="flex justify-between items-center">
+                    <Button
+                      onClick={isRecording ? stopRecording : startRecording}
+                      variant={isRecording ? "destructive" : "secondary"}
+                      disabled={isProcessing || !preferences.voiceEnabled}
+                      className={`h-12 px-6 flex items-center ${
+                        isRecording 
+                          ? 'bg-error text-white hover:bg-error/90' 
+                          : 'bg-lavender text-white hover:bg-lavender/90'
+                      } disabled:opacity-50`}
+                    >
+                      {isRecording ? (
+                        <>
+                          <Square className="h-4 w-4 mr-2" />
+                          Stop Recording
+                        </>
+                      ) : (
+                        <>
+                          <Mic className="h-4 w-4 mr-2" />
+                          Start Recording
+                        </>
+                      )}
+                    </Button>
+
+                    {messages.length > 0 && (
+                      <Button
+                        onClick={handleViewSummary}
+                        variant="outline"
+                        disabled={isProcessing}
+                        className="h-12 px-6 border-2 border-lavender text-lavender hover:bg-lavender/10 disabled:opacity-50"
+                      >
+                        View Summary
+                      </Button>
+                    )}
                   </div>
                 </div>
-              ))}
-              {isProcessing && (
-                <div className="flex justify-center">
-                  <div className="animate-pulse text-muted-foreground">
-                    Processing...
-                  </div>
+              </CardContent>
+            </Card>
           </div>
-        )}
-              <div ref={messagesEndRef} />
-            </CardContent>
-          </Card>
 
-          {/* Chat Input */}
-          <div className="space-y-4">
-            <div className="input-container">
-              <Input
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    handleSendMessage();
-                  }
-                }}
-                placeholder="Type your message..."
-                disabled={isProcessing || isRecording}
-                className="flex-1"
-              />
-              <Button
-                onClick={handleSendMessage}
-                disabled={isProcessing || isRecording || !inputText.trim()}
-                className="w-24"
-              >
-                Send
-              </Button>
-            </div>
+          {/* Right Sidebar - Journal and Resources */}
+          <div className="lg:col-span-3 space-y-6">
+            <div className="sticky top-24">
+              <Card className="shadow-card">
+                <CardContent className="p-6">
+                  <h3 className="font-serif text-h3 font-bold text-dark-gray mb-4">Journal</h3>
+                  <EnhancedJournal />
+                </CardContent>
+              </Card>
 
-            <div className="controls-container">
-          <Button
-                onClick={isRecording ? stopRecording : startRecording}
-                variant={isRecording ? "destructive" : "default"}
-                className="w-32"
-                disabled={isProcessing || !preferences.voiceEnabled}
-              >
-                {isRecording ? 'Stop' : 'Record'}
-          </Button>
-
-              {messages.length > 0 && (
-          <Button
-                  onClick={handleViewSummary}
-            variant="outline"
-                  disabled={isProcessing}
-          >
-                  View Summary
-          </Button>
-              )}
+              <Card className="mt-6 shadow-card">
+                <CardContent className="p-6">
+                  <h3 className="font-serif text-h3 font-bold text-dark-gray mb-4">Resources</h3>
+                  <ResourceLibrary />
+                </CardContent>
+              </Card>
             </div>
           </div>
         </div>
-
-        {/* Right Column: Journal */}
-        <div>
-          <EnhancedJournal />
-        </div>
-      </div>
+      </main>
     </div>
   )
 }

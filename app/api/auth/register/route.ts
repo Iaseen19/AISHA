@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { hash } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { UserRole } from "@prisma/client";
 import * as z from "zod";
 
 const registerSchema = z.object({
@@ -43,7 +44,7 @@ export async function POST(req: Request) {
         name,
         email,
         passwordHash: hashedPassword,
-        role: isAdmin ? "ADMIN" : "USER",
+        role: isAdmin ? UserRole.ADMIN : UserRole.USER,
       },
       select: {
         id: true,

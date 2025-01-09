@@ -1,33 +1,34 @@
 import NextAuth from "next-auth";
 import type { NextAuthConfig } from "next-auth";
-import type { JWT } from "@auth/core/jwt";
+import type { Session, User } from "next-auth";
+import type { JWT } from "next-auth/jwt";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { compare } from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { UserRole } from "@prisma/client";
 
-type UserRole = 'user' | 'admin' | 'therapist';
-
-declare module "@auth/core/types" {
-  interface User {
-    role: UserRole;
-  }
-  interface Session {
-    user: {
-      id: string;
-      email: string;
-      name: string;
-      role: UserRole;
-    }
-  }
+interface CustomUser extends User {
+  id: string;
+  email: string;
+  name: string | null;
+  role: UserRole;
 }
 
-declare module "@auth/core/jwt" {
-  interface JWT {
-    role: UserRole;
-  }
+interface CustomSession extends Session {
+  user: CustomUser;
 }
 
-const config = {
+interface Credentials {
+  email: string;
+  password: string;
+}
+
+interface CustomToken extends JWT {
+  id: string;
+  role: UserRole;
+}
+
+export const authConfig = {
   providers: [
     CredentialsProvider({
       name: "credentials",
@@ -43,15 +44,17 @@ const config = {
           placeholder: "Enter your password"
         }
       },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          throw new Error("Please provide both email and password");
+      async authorize(credentials): Promise<CustomUser | null> {
+        if (!credentials || !credentials.email || !credentials.password) {
+          return null;
         }
+
+        const { email, password } = credentials as Credentials;
 
         try {
           const user = await prisma.user.findUnique({
             where: { 
-              email: (credentials.email as string).toLowerCase()
+              email: email.toLowerCase()
             },
             select: {
               id: true,
@@ -63,27 +66,24 @@ const config = {
           });
 
           if (!user) {
-            throw new Error("Invalid email or password");
+            return null;
           }
 
-          const isPasswordValid = await compare(
-            credentials.password as string,
-            user.passwordHash
-          );
+          const isPasswordValid = await compare(password, user.passwordHash);
 
           if (!isPasswordValid) {
-            throw new Error("Invalid email or password");
+            return null;
           }
 
           return {
             id: user.id,
             email: user.email,
             name: user.name,
-            role: user.role as UserRole,
+            role: user.role,
           };
         } catch (error) {
           console.error("Authentication error:", error);
-          throw error;
+          return null;
         }
       },
     }),
@@ -94,19 +94,31 @@ const config = {
     error: "/login",
   },
   callbacks: {
-    async session({ session, token }) {
-      if (session?.user) {
-        session.user.id = token.id as string;
-        session.user.role = token.role as UserRole;
+    async session({ session, token }): Promise<CustomSession> {
+      if (!session?.user) {
+        throw new Error("Missing user on session");
       }
-      return session;
+
+      const customToken = token as CustomToken;
+
+      return {
+        ...session,
+        user: {
+          ...session.user,
+          id: customToken.id,
+          role: customToken.role,
+        } as CustomUser,
+      };
     },
-    async jwt({ token, user }) {
-      if (user) {
-        token.id = user.id;
-        token.role = user.role;
+    async jwt({ token, user }): Promise<CustomToken> {
+      if (!token.id && user) {
+        return {
+          ...token,
+          id: user.id,
+          role: user.role,
+        } as CustomToken;
       }
-      return token;
+      return token as CustomToken;
     },
   },
   session: {
@@ -117,4 +129,4 @@ const config = {
   trustHost: true,
 } satisfies NextAuthConfig;
 
-export const { auth, signIn, signOut } = NextAuth(config); 
+export const { auth, signIn, signOut } = NextAuth(authConfig); 

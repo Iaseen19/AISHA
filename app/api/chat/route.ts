@@ -1,19 +1,16 @@
 import { NextResponse } from 'next/server';
-import { langchainService } from '../../services/langchain';
+import { ollamaService } from '../../services/api';
 
 export async function POST(req: Request) {
   try {
     const { message } = await req.json();
     
-    // Get mood analysis
-    const moodAnalysis = await langchainService.analyzeMood(message);
-    
-    // Process message with conversation memory
-    const response = await langchainService.processMessage(message);
+    // Process message with Ollama
+    const response = await ollamaService.getChatResponse(message);
     
     return NextResponse.json({ 
-      response: { content: response },
-      mood: moodAnalysis
+      response: response,
+      success: true
     });
   } catch (error) {
     console.error('Chat error:', error);

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { UserRole } from '@prisma/client';
 
 export function middleware(request: NextRequest) {
   // Skip auth for API routes and static files
@@ -17,7 +18,7 @@ export function middleware(request: NextRequest) {
     name: "Default User",
     email: "default@example.com",
     sub: "default-user-id",
-    role: "USER",
+    role: UserRole.USER,
     iat: Math.floor(Date.now() / 1000),
     exp: Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60), // 30 days
   };

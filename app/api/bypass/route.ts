@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { hash } from 'bcryptjs';
+import { UserRole } from '@prisma/client';
 
 export async function GET() {
   try {
@@ -19,7 +20,7 @@ export async function GET() {
           email,
           name: 'Default User',
           passwordHash: hashedPassword,
-          role: 'USER',
+          role: UserRole.USER,
         },
       });
     }
