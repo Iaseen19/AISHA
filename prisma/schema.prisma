@@ -1,0 +1,165 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  email         String    @unique
+  name          String?
+  passwordHash  String
+  role          UserRole  @default(USER)
+  preferences   Json?     // Stores user preferences as JSON
+  
+  // Relations
+  sessions      Session[]
+  journalEntries JournalEntry[]
+  moodEntries   MoodEntry[]
+  goals         Goal[]
+  
+  @@map("users")
+}
+
+enum UserRole {
+  USER
+  THERAPIST
+  ADMIN
+}
+
+model Session {
+  id            String    @id @default(cuid())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  startTime     DateTime
+  endTime       DateTime?
+  summary       String?   @db.Text
+  transcript    String?   @db.Text
+  
+  // Relations
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages      Message[]
+  
+  @@map("sessions")
+}
+
+model Message {
+  id            String    @id @default(cuid())
+  createdAt     DateTime  @default(now())
+  content       String    @db.Text
+  role          MessageRole
+  
+  // Relations
+  sessionId     String
+  session       Session   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  
+  @@map("messages")
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+model JournalEntry {
+  id            String    @id @default(cuid())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  content       String    @db.Text
+  mood          Int       // Scale from 1-10
+  tags          String[]
+  
+  // Relations
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("journal_entries")
+}
+
+model MoodEntry {
+  id            String    @id @default(cuid())
+  createdAt     DateTime  @default(now())
+  value         Int       // Scale from 1-10
+  note          String?   @db.Text
+  
+  // Relations
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("mood_entries")
+}
+
+model Goal {
+  id            String    @id @default(cuid())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  title         String
+  description   String    @db.Text
+  status        GoalStatus @default(IN_PROGRESS)
+  dueDate       DateTime?
+  completedAt   DateTime?
+  
+  // Relations
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks         Task[]
+  
+  @@map("goals")
+}
+
+enum GoalStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  ON_HOLD
+}
+
+model Task {
+  id            String    @id @default(cuid())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  title         String
+  completed     Boolean   @default(false)
+  completedAt   DateTime?
+  
+  // Relations
+  goalId        String
+  goal          Goal      @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  
+  @@map("tasks")
+}
+
+model Resource {
+  id            String    @id @default(cuid())
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  title         String
+  description   String    @db.Text
+  url           String?
+  type          ResourceType
+  tags          String[]
+  
+  @@map("resources")
+}
+
+enum ResourceType {
+  ARTICLE
+  VIDEO
+  EXERCISE
+  CRISIS
+  MEDITATION
+  WORKSHEET
+}
